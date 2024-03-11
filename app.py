@@ -24,11 +24,39 @@ cors = CORS(app)
 db = SQLAlchemy(app)
 
 # put your database class at the top of the file
+class Entry(db.Model):
+    __tablename__="colorData"
 
+    # figure out what the columns are (and their datatypes)
+    id = db.Column(db.Integer, primary_key=True)
+    colorValue = db.Column(db.String(8), nullable=False)
+    colorName = db.Column(db.String(40), nullable=False)
+    genderIdentity = db.Column(db.String(2), nullable=False)
+    colorBlind = db.Column(db.String(10), nullable=False)
+    surveyType = db.Column(db.String(20), nullable=False)
 
+    # make an init function to save time
+    def __init__(self, colVal, colName, genIdent, colBlind, survType):
+        self.colorValue = colVal
+        self.colorName = colName
+        self.genderIdentity = genIdent
+        self.colorBlind = colBlind
+        self.surveyType = survType
+    
+    # make an easy output function
+    def getRow(self):
+        return [self.colorValue,self.colorName,self.genderIdentity,self.colorBlind,self.surveyType]
 
 # init database here
-
+engine = db.create_engine(SQLALCHEMY_DATABASE_URI)
+inspector = db.inspect(engine)
+if not inspector.has_table("colorData"):
+    with app.app_context():
+        # db.drop_all()  # DANGER: Only include this line if you want to delete ALL existing tables
+        db.create_all()
+        app.logger.info('Initialized the database!')
+else:
+    app.logger.info('Database already contains the colorData table.')
 
 
 # serve a hello world test page
@@ -67,14 +95,63 @@ def randomChroma():
 #  if they have POSTed data using a form, save that data in the DB and then serve a template
 @app.route('/survey', methods=['POST', 'GET'])
 def survey():
-    pass
+    
+    # we have two methods now, figure out which one we have
+    if request.method == "POST":
+        # we need to handle putting data to the db
+        print(request.form)
+
+        surveyType = request.form['surveyType']
+        colName = request.form['colorName']
+        colValue = request.form['colorValue']
+        genIdent = request.form['genderIdent']
+        colBlind = request.form['colorBlind']
+
+        #put the data into the db
+        e = Entry(colValue, colName, genIdent, colBlind, surveyType)
+        try:
+            db.session.add(e)
+            db.session.commit()
+        except Exception as e:  #don't do this, be specific
+            print("\n FAILED entry: {}\n".format(json.dumps(data)))
+            print(e)
+            sys.stdout.flush()
+
+    else:
+        # handle the get
+        genIdent = ""
+        colBlind = ""
+    
+    surveyTemplate = 'color_name_survey.htm'
+
+    colName = ""
+    colVal = randomChroma()
+
+    return render_template(surveyTemplate, colorName=colName,
+                                           colorVal=colVal,
+                                           genderIdent=genIdent,
+                                           colorBlind=colBlind)
+
     
 
 # send a CSV of the database entries to the user
 #  usually not a good idea to publish raw DB contents, but here we have no identifiable information hopefully
 @app.route('/dump_data')    
 def dump():
-    pass
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # make a csv
+    writer.writerow( ['id','colorValue','colorName','genderIdentity','colorBlind','surveyType'] )
+
+    entries = Entry.query.all()
+    for e in entries:
+        writer.writerow( e.getRow() )
+
+    response = make_response( output.getvalue() )
+    response.headers['Content-Type'] = 'text/plain' # MIME type
+    return response
         
 
 if __name__ == "__main__":
