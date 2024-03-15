@@ -142,7 +142,7 @@ def survey():
 def dump():
     output = io.StringIO()  # this is an empty receptacle for string contents
     writer = csv.writer(output)  # we feed in the output of the writer to the receptacle
-    writer.writerow( ['colorValue','colorName','genderIdentity','colorBlind','surveyType'] )
+    writer.writerow( ['id','colorValue','colorName','genderIdentity','colorBlind','surveyType'] )
     
     # loop through all Entry rows in their table
     entries = Entry.query.all()
